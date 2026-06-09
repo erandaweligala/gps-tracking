@@ -58,6 +58,28 @@ fun Project.alignJvmTarget() {
         .invoke(compileOptions, JavaVersion.VERSION_17)
 }
 
+// Some older Flutter plugins (e.g. background_locator_2) pin a low
+// `compileSdkVersion` (28). Because we align their Java source/target
+// compatibility to 17 (Java 9+) above, Android Gradle Plugin requires
+// `compileSdkVersion` to be 30 or above ("In order to compile Java 9+ source,
+// please set compileSdkVersion to 30 or above"). Bump any subproject below 34 up
+// to 34 so the build succeeds.
+fun Project.alignCompileSdk() {
+    if (!hasProperty("android")) return
+    val androidExtension = property("android") ?: return
+    val minCompileSdk = 34
+    val current =
+        (androidExtension.javaClass
+            .getMethod("getCompileSdkVersion")
+            .invoke(androidExtension) as String?)
+            ?.removePrefix("android-")
+            ?.toIntOrNull()
+    if (current != null && current >= minCompileSdk) return
+    androidExtension.javaClass
+        .getMethod("setCompileSdkVersion", Int::class.javaPrimitiveType)
+        .invoke(androidExtension, minCompileSdk)
+}
+
 // Register the namespace injection BEFORE forcing evaluation below. If a project has
 // already been evaluated, run the logic immediately instead of scheduling afterEvaluate
 // (which Gradle rejects once a project is evaluated).
@@ -65,10 +87,12 @@ subprojects {
     if (state.executed) {
         injectMissingNamespace()
         alignJvmTarget()
+        alignCompileSdk()
     } else {
         afterEvaluate {
             injectMissingNamespace()
             alignJvmTarget()
+            alignCompileSdk()
         }
     }
 }
