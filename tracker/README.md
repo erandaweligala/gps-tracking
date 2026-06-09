@@ -9,10 +9,16 @@ Works on Android and iOS.
 1. Install Flutter (3.3+) and run `flutter create .` **once** inside this
    folder to generate the rest of the `android/` and `ios/` native projects.
    `flutter create` **does not overwrite existing files**, so the pre-filled
-   `android/app/src/main/AndroidManifest.xml` and `ios/Runner/Info.plist`
-   committed here (with all the location permissions already set) are
-   preserved — you don't need to edit them by hand. The Dart sources in
-   `lib/` and `pubspec.yaml` are likewise kept.
+   `android/app/src/main/AndroidManifest.xml`, `android/build.gradle` and
+   `ios/Runner/Info.plist` committed here (with all the location permissions
+   already set, plus the AGP-namespace workaround below) are preserved — you
+   don't need to edit them by hand. The Dart sources in `lib/` and
+   `pubspec.yaml` are likewise kept.
+
+   > **Note:** if you ran `flutter create .` *before* pulling this commit, you
+   > already have a generated `android/build.gradle` on disk that git won't
+   > overwrite. Delete (or `git checkout`) your local copy so the committed one
+   > with the namespace workaround takes effect.
 2. `flutter pub get`
 3. Edit `lib/config.dart`:
    - `backendUrl` — your backend (use `http://10.0.2.2:4000` for the Android
@@ -54,6 +60,21 @@ need to customize further.
 ```
 
 Set `minSdkVersion 21` (or higher) in `android/app/build.gradle`.
+
+#### AGP 8+ "Namespace not specified" build error
+
+`background_locator_2` 2.0.6 was written for AGP 7 and doesn't declare a
+`namespace`, which AGP 8+ requires, so a fresh build fails with:
+
+```
+A problem occurred configuring project ':background_locator_2'.
+> Namespace not specified. Specify a namespace in the module's build file
+  .../background_locator_2-2.0.6/android/build.gradle
+```
+
+The committed `android/build.gradle` fixes this: a `subprojects` block injects
+a namespace into any plugin that's missing one (using its Gradle `group`). No
+manual editing of the pub-cache plugin is needed.
 
 ### iOS — `ios/Runner/Info.plist`
 
