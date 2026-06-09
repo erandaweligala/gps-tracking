@@ -7,20 +7,30 @@ Works on Android and iOS.
 ## Setup
 
 1. Install Flutter (3.3+) and run `flutter create .` **once** inside this
-   folder to generate the `android/` and `ios/` native projects (the Dart
-   sources in `lib/` and `pubspec.yaml` are already provided — keep them).
+   folder to generate the rest of the `android/` and `ios/` native projects.
+   `flutter create` **does not overwrite existing files**, so the pre-filled
+   `android/app/src/main/AndroidManifest.xml` and `ios/Runner/Info.plist`
+   committed here (with all the location permissions already set) are
+   preserved — you don't need to edit them by hand. The Dart sources in
+   `lib/` and `pubspec.yaml` are likewise kept.
 2. `flutter pub get`
 3. Edit `lib/config.dart`:
    - `backendUrl` — your backend (use `http://10.0.2.2:4000` for the Android
-     emulator, your LAN IP for a physical device, or your deployed HTTPS URL).
+     emulator, `http://localhost:4000` with `adb reverse tcp:4000 tcp:4000`
+     for a USB device, your LAN IP for Wi-Fi, or your deployed HTTPS URL).
    - `deviceToken` — paste the device JWT the backend prints on startup.
-4. Apply the native permissions below, then `flutter run`.
+4. `flutter run` — grant **"Allow all the time"** for location.
 
-## Required native configuration
+## Native configuration (already pre-filled)
 
-Background location needs platform-specific setup. The plugin's
-[README](https://pub.dev/packages/background_locator_2) is authoritative; the
-essentials:
+The manifest/plist below are **committed and ready** — this section documents
+what's in them. The plugin's
+[README](https://pub.dev/packages/background_locator_2) is authoritative if you
+need to customize further.
+
+> **Dev vs. production:** the committed files enable cleartext HTTP
+> (`usesCleartextTraffic` / `NSAllowsArbitraryLoads`) so the app can reach a
+> local `http://` backend. **Remove those once you serve over `https://`.**
 
 ### Android — `android/app/src/main/AndroidManifest.xml`
 
