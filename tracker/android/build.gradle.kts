@@ -86,9 +86,16 @@ fun Project.alignCompileSdk() {
 // `hashMapOf(...)` (which K2 infers as `HashMap<String, Comparable<*> & Serializable>`)
 // from functions declared to return `HashMap<Any, Any>`, which K2 rejects as a type
 // mismatch ("Return type mismatch") and fails `compileDebugKotlin`. Pin the map's type
-// arguments explicitly (`hashMapOf<Any, Any>(...)`) so it compiles under K2. The plugin
-// lives in the (ephemeral) pub cache, so re-apply the patch on every build; the change
-// is idempotent.
+// arguments explicitly (`hashMapOf<Any, Any>(...)`) so it compiles under K2.
+//
+// Pinning the value type to `Any` then exposes a second problem: one entry in the first
+// overload is `Keys.ARG_PROVIDER to location.provider`, and `location.provider` is
+// `String?` (nullable). K2 rejects that `Pair<String, String?>` against the now-explicit
+// `Pair<Any, Any>` ("Argument type mismatch ... Pair<K, V> was expected"). Coerce the
+// nullable provider to a non-null value so it satisfies the `HashMap<Any, Any>` type.
+//
+// The plugin lives in the (ephemeral) pub cache, so re-apply the patch on every build;
+// both replacements are idempotent (no-ops once applied or if upstream changes them).
 fun Project.patchBackgroundLocatorTypeInference() {
     if (name != "background_locator_2") return
     val source =
@@ -97,10 +104,24 @@ fun Project.patchBackgroundLocatorTypeInference() {
         )
     if (!source.exists()) return
     val original = source.readText()
+    var patched = original
     // `hashMapOf<Any, Any>(` no longer contains the substring `hashMapOf(`, so this is
     // a no-op once patched (or if upstream changes the call site).
-    if (!original.contains("hashMapOf(")) return
-    source.writeText(original.replace("hashMapOf(", "hashMapOf<Any, Any>("))
+    if (patched.contains("hashMapOf(")) {
+        patched = patched.replace("hashMapOf(", "hashMapOf<Any, Any>(")
+    }
+    // After coercion the substring `to location.provider` becomes `to (location.provider`,
+    // so this is also a no-op once patched.
+    if (patched.contains("Keys.ARG_PROVIDER to location.provider")) {
+        patched =
+            patched.replace(
+                "Keys.ARG_PROVIDER to location.provider",
+                "Keys.ARG_PROVIDER to (location.provider ?: \"\")",
+            )
+    }
+    if (patched != original) {
+        source.writeText(patched)
+    }
 }
 
 // Register the namespace injection BEFORE forcing evaluation below. If a project has
