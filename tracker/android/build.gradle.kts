@@ -38,15 +38,37 @@ fun Project.injectMissingNamespace() {
         .invoke(androidExtension, packageName)
 }
 
+// Some older Flutter plugins (e.g. background_locator_2) don't declare Java
+// `compileOptions`, so their Java compilation defaults to target 1.8 while the
+// Kotlin 2.x Gradle plugin compiles to JVM target 17. Android Gradle Plugin 8.x
+// rejects this mismatch ("Inconsistent JVM-target compatibility"). Align the
+// Java source/target compatibility to 17 to match Kotlin so the build succeeds.
+fun Project.alignJvmTarget() {
+    if (!hasProperty("android")) return
+    val androidExtension = property("android") ?: return
+    val compileOptions =
+        androidExtension.javaClass
+            .getMethod("getCompileOptions")
+            .invoke(androidExtension) ?: return
+    compileOptions.javaClass
+        .getMethod("setSourceCompatibility", JavaVersion::class.java)
+        .invoke(compileOptions, JavaVersion.VERSION_17)
+    compileOptions.javaClass
+        .getMethod("setTargetCompatibility", JavaVersion::class.java)
+        .invoke(compileOptions, JavaVersion.VERSION_17)
+}
+
 // Register the namespace injection BEFORE forcing evaluation below. If a project has
 // already been evaluated, run the logic immediately instead of scheduling afterEvaluate
 // (which Gradle rejects once a project is evaluated).
 subprojects {
     if (state.executed) {
         injectMissingNamespace()
+        alignJvmTarget()
     } else {
         afterEvaluate {
             injectMissingNamespace()
+            alignJvmTarget()
         }
     }
 }
