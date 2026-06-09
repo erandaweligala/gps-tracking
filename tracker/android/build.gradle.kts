@@ -80,15 +80,17 @@ fun Project.alignCompileSdk() {
         .invoke(androidExtension, minCompileSdk)
 }
 
-// Kotlin 2.x's K2 compiler tightened type inference: it no longer propagates a
-// function's declared return type into a `hashMapOf(...)` call. background_locator_2
-// 2.0.6 relies on the old behavior in LocationParserUtil.kt — it returns
-// `hashMapOf(...)` (which K2 infers as `HashMap<String, Comparable<*> & Serializable>`)
-// from functions declared to return `HashMap<Any, Any>`, which K2 rejects as a type
-// mismatch ("Return type mismatch") and fails `compileDebugKotlin`. Pin the map's type
-// arguments explicitly (`hashMapOf<Any, Any>(...)`) so it compiles under K2. The plugin
-// lives in the (ephemeral) pub cache, so re-apply the patch on every build; the change
-// is idempotent.
+// background_locator_2 2.0.6's LocationParserUtil.kt builds a `hashMapOf(...)` and
+// returns it from a function declared to return `HashMap<Any, Any>`. One of the values,
+// `location.provider`, is `String?` (the Android SDK annotates `Location.getProvider()`
+// as `@Nullable`). Kotlin 1.x propagated the declared `HashMap<Any, Any>` return type
+// into the `hashMapOf(...)` call, but the Kotlin 2.x K2 compiler infers the type from
+// the arguments first — yielding `HashMap<String, Comparable<*>? & Serializable?>` (note
+// the nullable value type) — which it rejects against `HashMap<Any, Any>` with "Return
+// type mismatch", failing `compileDebugKotlin`. Coerce the lone nullable value to a
+// non-null `String` so every value is non-null `Any` and the map again conforms to the
+// declared return type. The plugin lives in the (ephemeral) pub cache, so re-apply the
+// patch on every build; the change is idempotent.
 fun Project.patchBackgroundLocatorTypeInference() {
     if (name != "background_locator_2") return
     val source =
@@ -97,10 +99,14 @@ fun Project.patchBackgroundLocatorTypeInference() {
         )
     if (!source.exists()) return
     val original = source.readText()
-    // `hashMapOf<Any, Any>(` no longer contains the substring `hashMapOf(`, so this is
-    // a no-op once patched (or if upstream changes the call site).
-    if (!original.contains("hashMapOf(")) return
-    source.writeText(original.replace("hashMapOf(", "hashMapOf<Any, Any>("))
+    val unpatched = "Keys.ARG_PROVIDER to location.provider"
+    // Once patched the value is `(location.provider ?: "")`, which no longer contains the
+    // `unpatched` substring, so this is a no-op on subsequent builds (or if upstream
+    // changes the call site).
+    if (!original.contains(unpatched)) return
+    source.writeText(
+        original.replace(unpatched, "Keys.ARG_PROVIDER to (location.provider ?: \"\")"),
+    )
 }
 
 // Register the namespace injection BEFORE forcing evaluation below. If a project has
