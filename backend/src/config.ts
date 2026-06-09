@@ -4,14 +4,12 @@ export const config = {
     process.env.DATABASE_URL ??
     "postgres://gps:gps@localhost:5432/gps_tracking",
   jwtSecret: process.env.JWT_SECRET ?? "dev-secret-change-me",
-  // Comma-separated list of allowed dashboard origins. Defaults to both the
-  // `localhost` and `127.0.0.1` forms on Vite's dev port, since browsers treat
-  // them as distinct origins for CORS.
-  corsOrigin: (
-    process.env.CORS_ORIGIN ??
-    "http://localhost:5173,http://127.0.0.1:5173"
-  )
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean),
+  // CORS for the dashboard (REST + Socket.IO).
+  // - If CORS_ORIGIN is set, it is a comma-separated allow-list of origins.
+  // - If it is unset (local dev), we reflect ANY request origin (`true`) so it
+  //   works whether you open the dashboard via localhost, 127.0.0.1, or a LAN
+  //   IP. Set CORS_ORIGIN explicitly in production.
+  corsOrigin: process.env.CORS_ORIGIN
+    ? process.env.CORS_ORIGIN.split(",").map((s) => s.trim()).filter(Boolean)
+    : true,
 };
