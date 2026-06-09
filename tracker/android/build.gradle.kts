@@ -51,6 +51,18 @@ subprojects {
     }
 }
 
+// Some older Flutter plugins (e.g. background_locator_2) compile their Kotlin with a
+// JVM target of 17 (inherited from the project's Kotlin version) while leaving their
+// Java compilation at the legacy default of 1.8. Android Gradle Plugin 8.x rejects this
+// mismatch with "Inconsistent JVM-target compatibility". Force every subproject's Java
+// compilation to target 17 so it lines up with the Kotlin target.
+subprojects {
+    tasks.withType<org.gradle.api.tasks.compile.JavaCompile>().configureEach {
+        sourceCompatibility = JavaVersion.VERSION_17.toString()
+        targetCompatibility = JavaVersion.VERSION_17.toString()
+    }
+}
+
 subprojects {
     project.evaluationDependsOn(":app")
 }
