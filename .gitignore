@@ -1,0 +1,25 @@
+# Node
+node_modules/
+dist/
+build/
+*.log
+.env
+.env.local
+
+# Flutter / Dart
+tracker/.dart_tool/
+tracker/.flutter-plugins
+tracker/.flutter-plugins-dependencies
+tracker/.packages
+tracker/build/
+tracker/ios/Pods/
+tracker/ios/.symlinks/
+tracker/android/.gradle/
+tracker/android/local.properties
+*.iml
+
+# Misc
+.DS_Store
+.idea/
+.vscode/
+coverage/
