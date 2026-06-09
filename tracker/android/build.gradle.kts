@@ -80,6 +80,29 @@ fun Project.alignCompileSdk() {
         .invoke(androidExtension, minCompileSdk)
 }
 
+// Kotlin 2.x's K2 compiler tightened type inference: it no longer propagates a
+// function's declared return type into a `hashMapOf(...)` call. background_locator_2
+// 2.0.6 relies on the old behavior in LocationParserUtil.kt — it returns
+// `hashMapOf(...)` (which K2 infers as `HashMap<String, Comparable<*> & Serializable>`)
+// from functions declared to return `HashMap<Any, Any>`, which K2 rejects as a type
+// mismatch ("Return type mismatch") and fails `compileDebugKotlin`. Pin the map's type
+// arguments explicitly (`hashMapOf<Any, Any>(...)`) so it compiles under K2. The plugin
+// lives in the (ephemeral) pub cache, so re-apply the patch on every build; the change
+// is idempotent.
+fun Project.patchBackgroundLocatorTypeInference() {
+    if (name != "background_locator_2") return
+    val source =
+        file(
+            "src/main/kotlin/yukams/app/background_locator_2/provider/LocationParserUtil.kt",
+        )
+    if (!source.exists()) return
+    val original = source.readText()
+    // `hashMapOf<Any, Any>(` no longer contains the substring `hashMapOf(`, so this is
+    // a no-op once patched (or if upstream changes the call site).
+    if (!original.contains("hashMapOf(")) return
+    source.writeText(original.replace("hashMapOf(", "hashMapOf<Any, Any>("))
+}
+
 // Register the namespace injection BEFORE forcing evaluation below. If a project has
 // already been evaluated, run the logic immediately instead of scheduling afterEvaluate
 // (which Gradle rejects once a project is evaluated).
@@ -88,11 +111,13 @@ subprojects {
         injectMissingNamespace()
         alignJvmTarget()
         alignCompileSdk()
+        patchBackgroundLocatorTypeInference()
     } else {
         afterEvaluate {
             injectMissingNamespace()
             alignJvmTarget()
             alignCompileSdk()
+            patchBackgroundLocatorTypeInference()
         }
     }
 }
