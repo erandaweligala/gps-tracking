@@ -15,36 +15,44 @@ subprojects {
     val newSubprojectBuildDir: Directory = newBuildDir.dir(project.name)
     project.layout.buildDirectory.value(newSubprojectBuildDir)
 }
-subprojects {
-    project.evaluationDependsOn(":app")
-}
 
 // Some older Flutter plugins (e.g. background_locator_2) don't declare an Android
 // `namespace`, which Android Gradle Plugin 8.x requires. Inject one derived from the
 // plugin's AndroidManifest `package` attribute so the build doesn't fail.
+fun Project.injectMissingNamespace() {
+    if (!hasProperty("android")) return
+    val androidExtension = property("android") ?: return
+    val getNamespace = androidExtension.javaClass.getMethod("getNamespace")
+    val currentNamespace = getNamespace.invoke(androidExtension) as String?
+    if (currentNamespace != null) return
+    val manifestFile = file("src/main/AndroidManifest.xml")
+    if (!manifestFile.exists()) return
+    val packageName =
+        Regex("""package\s*=\s*["']([^"']+)["']""")
+            .find(manifestFile.readText())
+            ?.groupValues
+            ?.get(1)
+            ?: return
+    androidExtension.javaClass
+        .getMethod("setNamespace", String::class.java)
+        .invoke(androidExtension, packageName)
+}
+
+// Register the namespace injection BEFORE forcing evaluation below. If a project has
+// already been evaluated, run the logic immediately instead of scheduling afterEvaluate
+// (which Gradle rejects once a project is evaluated).
 subprojects {
-    afterEvaluate {
-        if (project.hasProperty("android")) {
-            val androidExtension = project.property("android") ?: return@afterEvaluate
-            val getNamespace = androidExtension.javaClass.getMethod("getNamespace")
-            val currentNamespace = getNamespace.invoke(androidExtension) as String?
-            if (currentNamespace == null) {
-                val manifestFile = project.file("src/main/AndroidManifest.xml")
-                if (manifestFile.exists()) {
-                    val packageName =
-                        Regex("""package\s*=\s*["']([^"']+)["']""")
-                            .find(manifestFile.readText())
-                            ?.groupValues
-                            ?.get(1)
-                    if (packageName != null) {
-                        androidExtension.javaClass
-                            .getMethod("setNamespace", String::class.java)
-                            .invoke(androidExtension, packageName)
-                    }
-                }
-            }
+    if (state.executed) {
+        injectMissingNamespace()
+    } else {
+        afterEvaluate {
+            injectMissingNamespace()
         }
     }
+}
+
+subprojects {
+    project.evaluationDependsOn(":app")
 }
 
 tasks.register<Delete>("clean") {
